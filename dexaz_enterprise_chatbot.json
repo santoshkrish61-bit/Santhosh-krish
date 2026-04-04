@@ -1,0 +1,486 @@
+{
+  "name": "DEXAZ — Enterprise WhatsApp AI Customer Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dexaz-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "n1",
+      "name": "📡 WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\":\"ok\"}",
+        "options": {}
+      },
+      "id": "n2",
+      "name": "⚡ Instant ACK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [320, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "msg-check",
+              "leftValue": "={{ $json.entry[0].changes[0].value.messages }}",
+              "rightValue": "",
+              "operator": { "type": "array", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "n3",
+      "name": "🔍 Message Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "p1", "name": "phoneNumber", "value": "={{ $json.entry[0].changes[0].value.messages[0].from }}", "type": "string" },
+            { "id": "p2", "name": "rawText", "value": "={{ $json.entry[0].changes[0].value.messages[0].text?.body ?? $json.entry[0].changes[0].value.messages[0].button?.text ?? $json.entry[0].changes[0].value.messages[0].interactive?.button_reply?.title ?? '' }}", "type": "string" },
+            { "id": "p3", "name": "msgType", "value": "={{ $json.entry[0].changes[0].value.messages[0].type }}", "type": "string" },
+            { "id": "p4", "name": "customerName", "value": "={{ $json.entry[0].changes[0].value.contacts[0]?.profile?.name ?? 'Valued Student' }}", "type": "string" },
+            { "id": "p5", "name": "wabaPhoneId", "value": "={{ $json.entry[0].changes[0].value.metadata.phone_number_id }}", "type": "string" },
+            { "id": "p6", "name": "msgId", "value": "={{ $json.entry[0].changes[0].value.messages[0].id }}", "type": "string" },
+            { "id": "p7", "name": "timestamp", "value": "={{ new Date().toISOString() }}", "type": "string" },
+            { "id": "p8", "name": "hasMedia", "value": "={{ ['image','audio','video','document'].includes($json.entry[0].changes[0].value.messages[0].type) }}", "type": "boolean" }
+          ]
+        }
+      },
+      "id": "n4",
+      "name": "🧩 Deep Message Parser",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [560, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.wabaPhoneId }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $vars.WHATSAPP_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={ \"messaging_product\": \"whatsapp\", \"status\": \"read\", \"message_id\": \"{{ $json.msgId }}\" }"
+      },
+      "id": "n5",
+      "name": "✅ Mark as Read",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [780, 160]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://{{ $vars.SUPABASE_URL }}/rest/v1/dexaz_sessions?phone=eq.{{ $('🧩 Deep Message Parser').item.json.phoneNumber }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_ANON_KEY }}" }
+          ]
+        }
+      },
+      "id": "n6",
+      "name": "🧠 Load Student Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [780, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "e1", "name": "phoneNumber", "value": "={{ $('🧩 Deep Message Parser').item.json.phoneNumber }}", "type": "string" },
+            { "id": "e2", "name": "rawText", "value": "={{ $('🧩 Deep Message Parser').item.json.rawText }}", "type": "string" },
+            { "id": "e3", "name": "msgType", "value": "={{ $('🧩 Deep Message Parser').item.json.msgType }}", "type": "string" },
+            { "id": "e4", "name": "customerName", "value": "={{ $('🧩 Deep Message Parser').item.json.customerName }}", "type": "string" },
+            { "id": "e5", "name": "wabaPhoneId", "value": "={{ $('🧩 Deep Message Parser').item.json.wabaPhoneId }}", "type": "string" },
+            { "id": "e6", "name": "msgId", "value": "={{ $('🧩 Deep Message Parser').item.json.msgId }}", "type": "string" },
+            { "id": "e7", "name": "conversationHistory", "value": "={{ $json[0]?.conversation_history ?? '[]' }}", "type": "string" },
+            { "id": "e8", "name": "studentProfile", "value": "={{ JSON.stringify($json[0] ?? {}) }}", "type": "string" },
+            { "id": "e9", "name": "messageCount", "value": "={{ $json[0]?.message_count ?? 0 }}", "type": "number" },
+            { "id": "e10", "name": "sentimentScore", "value": "={{ $json[0]?.avg_sentiment ?? 0.5 }}", "type": "number" },
+            { "id": "e11", "name": "isFirstContact", "value": "={{ $json.length === 0 }}", "type": "boolean" },
+            { "id": "e12", "name": "enrolledCourses", "value": "={{ $json[0]?.enrolled_courses ?? '[]' }}", "type": "string" },
+            { "id": "e13", "name": "ticketHistory", "value": "={{ $json[0]?.ticket_history ?? '[]' }}", "type": "string" },
+            { "id": "e14", "name": "preferredLanguage", "value": "={{ $json[0]?.preferred_language ?? 'English' }}", "type": "string" },
+            { "id": "e15", "name": "loyaltyTier", "value": "={{ $json[0]?.loyalty_tier ?? 'new' }}", "type": "string" }
+          ]
+        }
+      },
+      "id": "n7",
+      "name": "🔗 Enrich Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "first-check",
+              "leftValue": "={{ $json.isFirstContact }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "n8",
+      "name": "🌟 First Time?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.wabaPhoneId }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $vars.WHATSAPP_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.phoneNumber }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"header\": { \"type\": \"text\", \"text\": \"Welcome to DEXAZ Academy 🎓\" },\n    \"body\": { \"text\": \"Hi {{ $json.customerName }}! I'm *Nova*, your personal learning assistant at DEXAZ.\\n\\nI'm here 24/7 to help you with courses, payments, schedules, and more. What brings you here today?\" },\n    \"footer\": { \"text\": \"DEXAZ — Elevate Your Learning\" },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"explore_courses\", \"title\": \"📚 Explore Courses\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"already_enrolled\", \"title\": \"✅ I'm Enrolled\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"talk_to_human\", \"title\": \"🙋 Talk to Someone\" } }\n      ]\n    }\n  }\n}"
+      },
+      "id": "n9",
+      "name": "🎉 Welcome Experience",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1440, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $vars.ANTHROPIC_API_KEY }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"system\": \"You are Nova, DEXAZ Academy's elite AI customer experience agent. You are not a basic chatbot — you are a world-class conversational intelligence designed to exceed the expectations of Fortune 500 support teams.\\n\\n## YOUR IDENTITY\\nName: Nova | Brand: DEXAZ Academy | Role: Head of Student Experience\\nPersonality: Warm, intelligent, proactive, empathetic, and solution-obsessed.\\nTone: Professional yet human — never robotic, never generic.\\n\\n## CORE ENGINES YOU OPERATE\\n\\n### 1. EMOTION INTELLIGENCE ENGINE\\n- Detect emotional state from every message: happy, frustrated, confused, excited, angry, anxious\\n- Mirror the student's energy — match their enthusiasm or calm their frustration\\n- Never give a templated reply to an emotional message\\n- If anger or distress detected: acknowledge FIRST, solve SECOND\\n\\n### 2. INTENT CLASSIFICATION ENGINE\\nClassify every message into ONE primary intent:\\n- ENROLL: wants to join a course\\n- ACCESS: WhatsApp group, login, materials\\n- PAYMENT: paid, pending, refund, receipt\\n- SCHEDULE: timing, dates, session info\\n- PROGRESS: assignment, feedback, certificate\\n- COMPLAINT: issue, problem, dissatisfaction\\n- CHURN_RISK: thinking of leaving, comparing options\\n- ESCALATE: needs human immediately\\n- UPSELL: good student, upgrade opportunity\\n- SMALL_TALK: greeting, casual conversation\\n- UNKNOWN: unclear — ask a smart clarifying question\\n\\n### 3. PROACTIVE CARE ENGINE\\n- Don't just answer — anticipate the NEXT question\\n- If student asks about enrollment → also mention payment, group access, schedule\\n- If student has a complaint → check their history and acknowledge past issues\\n- Offer help they didn't ask for but clearly need\\n\\n### 4. PERSONALISATION ENGINE\\nUse the student's profile:\\n- Address them by first name\\n- Reference their enrolled courses if applicable\\n- Adapt communication style based on message_count (new vs veteran student)\\n- Loyalty tier awareness: new → nurture, active → serve fast, vip → white-glove\\n\\n### 5. RESOLUTION QUALITY ENGINE\\n- Every response must be COMPLETE — no half-answers\\n- Provide specific next steps, not vague directions\\n- If you don't know something specific, say so honestly and tell them exactly how it will be resolved\\n- End replies with a soft CTA: a question, an offer, or a next step\\n\\n### 6. CHURN PREVENTION ENGINE\\n- If intent = CHURN_RISK: use empathy + value reinforcement\\n- Never argue. Understand WHY they want to leave\\n- Offer: session with instructor, fee flexibility, course switch\\n- Escalate to human if churn risk is high\\n\\n## RESPONSE FORMAT RULES (WhatsApp)\\n- Use *bold* for important info\\n- Use line breaks generously — never a wall of text\\n- Max 3 paragraphs per message\\n- Use relevant emojis sparingly (1-2 per message max)\\n- Never use bullet points with dashes — use numbered lists or plain sentences\\n\\n## STUDENT CONTEXT\\nName: {{ $json.customerName }}\\nPhone: {{ $json.phoneNumber }}\\nLoyalty Tier: {{ $json.loyaltyTier }}\\nMessage Count: {{ $json.messageCount }}\\nEnrolled Courses: {{ $json.enrolledCourses }}\\nPreferred Language: {{ $json.preferredLanguage }}\\nPast Tickets: {{ $json.ticketHistory }}\\nConversation History (last 20 msgs):\\n{{ $json.conversationHistory }}\\n\\n## OUTPUT FORMAT (strict JSON only, no extra text):\\n{\\n  \\\"reply\\\": \\\"your WhatsApp reply here\\\",\\n  \\\"intent\\\": \\\"one of the intent tags above\\\",\\n  \\\"emotion\\\": \\\"happy|neutral|frustrated|anxious|angry|excited\\\",\\n  \\\"sentiment_score\\\": 0.0 to 1.0 (0=very negative, 1=very positive),\\n  \\\"needs_interactive\\\": true or false,\\n  \\\"interactive_type\\\": \\\"buttons|list|none\\\",\\n  \\\"suggested_buttons\\\": [\\\"option1\\\",\\\"option2\\\",\\\"option3\\\"] or [],\\n  \\\"escalate\\\": true or false,\\n  \\\"churn_risk\\\": true or false,\\n  \\\"upsell_opportunity\\\": true or false,\\n  \\\"internal_note\\\": \\\"brief note for the support team about this interaction\\\",\\n  \\\"follow_up_in_hours\\\": 0 (0 = no follow up needed, otherwise hours until bot should check in)\\n}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.rawText }}\"\n    }\n  ]\n}"
+      },
+      "id": "n10",
+      "name": "🧠 Nova AI Engine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1440, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "r1", "name": "aiReply", "value": "={{ JSON.parse($json.content[0].text).reply }}", "type": "string" },
+            { "id": "r2", "name": "intent", "value": "={{ JSON.parse($json.content[0].text).intent }}", "type": "string" },
+            { "id": "r3", "name": "emotion", "value": "={{ JSON.parse($json.content[0].text).emotion }}", "type": "string" },
+            { "id": "r4", "name": "sentimentScore", "value": "={{ JSON.parse($json.content[0].text).sentiment_score }}", "type": "number" },
+            { "id": "r5", "name": "needsInteractive", "value": "={{ JSON.parse($json.content[0].text).needs_interactive }}", "type": "boolean" },
+            { "id": "r6", "name": "suggestedButtons", "value": "={{ JSON.stringify(JSON.parse($json.content[0].text).suggested_buttons) }}", "type": "string" },
+            { "id": "r7", "name": "escalate", "value": "={{ JSON.parse($json.content[0].text).escalate }}", "type": "boolean" },
+            { "id": "r8", "name": "churnRisk", "value": "={{ JSON.parse($json.content[0].text).churn_risk }}", "type": "boolean" },
+            { "id": "r9", "name": "upsellOpportunity", "value": "={{ JSON.parse($json.content[0].text).upsell_opportunity }}", "type": "boolean" },
+            { "id": "r10", "name": "internalNote", "value": "={{ JSON.parse($json.content[0].text).internal_note }}", "type": "string" },
+            { "id": "r11", "name": "followUpHours", "value": "={{ JSON.parse($json.content[0].text).follow_up_in_hours ?? 0 }}", "type": "number" },
+            { "id": "r12", "name": "phoneNumber", "value": "={{ $('🔗 Enrich Context').item.json.phoneNumber }}", "type": "string" },
+            { "id": "r13", "name": "customerName", "value": "={{ $('🔗 Enrich Context').item.json.customerName }}", "type": "string" },
+            { "id": "r14", "name": "rawText", "value": "={{ $('🔗 Enrich Context').item.json.rawText }}", "type": "string" },
+            { "id": "r15", "name": "wabaPhoneId", "value": "={{ $('🔗 Enrich Context').item.json.wabaPhoneId }}", "type": "string" },
+            { "id": "r16", "name": "conversationHistory", "value": "={{ $('🔗 Enrich Context').item.json.conversationHistory }}", "type": "string" },
+            { "id": "r17", "name": "messageCount", "value": "={{ $('🔗 Enrich Context').item.json.messageCount }}", "type": "number" },
+            { "id": "r18", "name": "loyaltyTier", "value": "={{ $('🔗 Enrich Context').item.json.loyaltyTier }}", "type": "string" },
+            { "id": "r19", "name": "enrolledCourses", "value": "={{ $('🔗 Enrich Context').item.json.enrolledCourses }}", "type": "string" },
+            { "id": "r20", "name": "ticketHistory", "value": "={{ $('🔗 Enrich Context').item.json.ticketHistory }}", "type": "string" },
+            { "id": "r21", "name": "interactiveButtons", "value": "={{ JSON.parse($json.content[0].text).needs_interactive ? JSON.stringify(JSON.parse($json.content[0].text).suggested_buttons) : '[]' }}", "type": "string" }
+          ]
+        }
+      },
+      "id": "n11",
+      "name": "⚙️ Parse Nova Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1660, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "esc",
+              "leftValue": "={{ $json.escalate }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "n12",
+      "name": "🚨 Escalation Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1880, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $vars.AGENT_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $vars.WHATSAPP_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $vars.AGENT_WHATSAPP_NUMBER }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"🚨 *DEXAZ — Live Escalation Alert*\\n\\n*Student:* {{ $json.customerName }}\\n*Phone:* +{{ $json.phoneNumber }}\\n*Loyalty Tier:* {{ $json.loyaltyTier }}\\n*Enrolled In:* {{ $json.enrolledCourses }}\\n*Emotion:* {{ $json.emotion }}\\n*Churn Risk:* {{ $json.churnRisk }}\\n\\n*Their Message:*\\n{{ $json.rawText }}\\n\\n*Nova's Note:*\\n{{ $json.internalNote }}\\n\\n━━━━━━━━━━━━━━━\\nReply directly to +{{ $json.phoneNumber }} on WhatsApp\"\n  }\n}"
+      },
+      "id": "n13",
+      "name": "🆘 Alert DEXAZ Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2100, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "churn",
+              "leftValue": "={{ $json.churnRisk }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "n14",
+      "name": "⚠️ Churn Risk Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2100, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{ $vars.SUPABASE_URL }}/rest/v1/dexaz_churn_risks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={ \"phone\": \"{{ $json.phoneNumber }}\", \"name\": \"{{ $json.customerName }}\", \"last_message\": \"{{ $json.rawText }}\", \"emotion\": \"{{ $json.emotion }}\", \"sentiment\": {{ $json.sentimentScore }}, \"internal_note\": \"{{ $json.internalNote }}\", \"flagged_at\": \"{{ new Date().toISOString() }}\", \"status\": \"open\" }"
+      },
+      "id": "n15",
+      "name": "📋 Log Churn Risk",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2320, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "interactive-check",
+              "leftValue": "={{ $json.needsInteractive }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "n16",
+      "name": "🎛️ Interactive Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2320, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.wabaPhoneId }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $vars.WHATSAPP_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.phoneNumber }}\",\n  \"type\": \"interactive\",\n  \"interactive\": {\n    \"type\": \"button\",\n    \"body\": { \"text\": \"{{ $json.aiReply }}\" },\n    \"footer\": { \"text\": \"DEXAZ Academy — Nova AI\" },\n    \"action\": {\n      \"buttons\": [\n        { \"type\": \"reply\", \"reply\": { \"id\": \"btn_0\", \"title\": \"{{ JSON.parse($json.interactiveButtons)[0] ?? 'Help' }}\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"btn_1\", \"title\": \"{{ JSON.parse($json.interactiveButtons)[1] ?? 'More Info' }}\" } },\n        { \"type\": \"reply\", \"reply\": { \"id\": \"btn_2\", \"title\": \"{{ JSON.parse($json.interactiveButtons)[2] ?? 'Contact Us' }}\" } }\n      ]\n    }\n  }\n}"
+      },
+      "id": "n17",
+      "name": "🔘 Send Interactive Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2540, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.wabaPhoneId }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $vars.WHATSAPP_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.phoneNumber }}\",\n  \"type\": \"text\",\n  \"text\": { \"body\": \"{{ $json.aiReply }}\" }\n}"
+      },
+      "id": "n18",
+      "name": "💬 Send Text Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2540, 340]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "updatedHistory",
+              "value": "={{ (() => { try { const h = JSON.parse($('🔗 Enrich Context').item.json.conversationHistory || '[]'); h.push({ role: 'student', content: $('⚙️ Parse Nova Output').item.json.rawText, ts: new Date().toISOString(), emotion: $('⚙️ Parse Nova Output').item.json.emotion }); h.push({ role: 'nova', content: $('⚙️ Parse Nova Output').item.json.aiReply, ts: new Date().toISOString(), intent: $('⚙️ Parse Nova Output').item.json.intent }); return JSON.stringify(h.slice(-30)); } catch(e) { return '[]'; } })() }}",
+              "type": "string"
+            },
+            {
+              "id": "s2",
+              "name": "newMessageCount",
+              "value": "={{ ($('🔗 Enrich Context').item.json.messageCount ?? 0) + 1 }}",
+              "type": "number"
+            },
+            {
+              "id": "s3",
+              "name": "newLoyaltyTier",
+              "value": "={{ (() => { const c = ($('🔗 Enrich Context').item.json.messageCount ?? 0) + 1; if(c >= 50) return 'vip'; if(c >= 20) return 'active'; if(c >= 5) return 'engaged'; return 'new'; })() }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "n19",
+      "name": "📊 Prepare Analytics",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [2760, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{ $vars.SUPABASE_URL }}/rest/v1/dexaz_sessions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"phone\": \"{{ $('⚙️ Parse Nova Output').item.json.phoneNumber }}\",\n  \"name\": \"{{ $('⚙️ Parse Nova Output').item.json.customerName }}\",\n  \"conversation_history\": {{ $json.updatedHistory }},\n  \"message_count\": {{ $json.newMessageCount }},\n  \"loyalty_tier\": \"{{ $json.newLoyaltyTier }}\",\n  \"last_intent\": \"{{ $('⚙️ Parse Nova Output').item.json.intent }}\",\n  \"last_emotion\": \"{{ $('⚙️ Parse Nova Output').item.json.emotion }}\",\n  \"avg_sentiment\": {{ $('⚙️ Parse Nova Output').item.json.sentimentScore }},\n  \"churn_risk_flag\": {{ $('⚙️ Parse Nova Output').item.json.churnRisk }},\n  \"upsell_flag\": {{ $('⚙️ Parse Nova Output').item.json.upsellOpportunity }},\n  \"last_seen\": \"{{ new Date().toISOString() }}\",\n  \"updated_at\": \"{{ new Date().toISOString() }}\"\n}"
+      },
+      "id": "n20",
+      "name": "💾 Save to DEXAZ CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2980, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://{{ $vars.SUPABASE_URL }}/rest/v1/dexaz_analytics",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $vars.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\n  \"phone\": \"{{ $('⚙️ Parse Nova Output').item.json.phoneNumber }}\",\n  \"intent\": \"{{ $('⚙️ Parse Nova Output').item.json.intent }}\",\n  \"emotion\": \"{{ $('⚙️ Parse Nova Output').item.json.emotion }}\",\n  \"sentiment_score\": {{ $('⚙️ Parse Nova Output').item.json.sentimentScore }},\n  \"escalated\": {{ $('⚙️ Parse Nova Output').item.json.escalate }},\n  \"churn_risk\": {{ $('⚙️ Parse Nova Output').item.json.churnRisk }},\n  \"upsell_flag\": {{ $('⚙️ Parse Nova Output').item.json.upsellOpportunity }},\n  \"message\": \"{{ $('⚙️ Parse Nova Output').item.json.rawText }}\",\n  \"internal_note\": \"{{ $('⚙️ Parse Nova Output').item.json.internalNote }}\",\n  \"loyalty_tier\": \"{{ $('⚙️ Parse Nova Output').item.json.loyaltyTier }}\",\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}"
+      },
+      "id": "n21",
+      "name": "📈 Log to Analytics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2980, 460]
+    }
+  ],
+  "connections": {
+    "📡 WhatsApp Webhook": { "main": [[{ "node": "⚡ Instant ACK", "type": "main", "index": 0 }, { "node": "🔍 Message Gate", "type": "main", "index": 0 }]] },
+    "🔍 Message Gate": { "main": [[{ "node": "🧩 Deep Message Parser", "type": "main", "index": 0 }]] },
+    "🧩 Deep Message Parser": { "main": [[{ "node": "✅ Mark as Read", "type": "main", "index": 0 }, { "node": "🧠 Load Student Profile", "type": "main", "index": 0 }]] },
+    "🧠 Load Student Profile": { "main": [[{ "node": "🔗 Enrich Context", "type": "main", "index": 0 }]] },
+    "🔗 Enrich Context": { "main": [[{ "node": "🌟 First Time?", "type": "main", "index": 0 }]] },
+    "🌟 First Time?": { "main": [[{ "node": "🎉 Welcome Experience", "type": "main", "index": 0 }], [{ "node": "🧠 Nova AI Engine", "type": "main", "index": 0 }]] },
+    "🧠 Nova AI Engine": { "main": [[{ "node": "⚙️ Parse Nova Output", "type": "main", "index": 0 }]] },
+    "⚙️ Parse Nova Output": { "main": [[{ "node": "🚨 Escalation Check", "type": "main", "index": 0 }]] },
+    "🚨 Escalation Check": { "main": [[{ "node": "🆘 Alert DEXAZ Agent", "type": "main", "index": 0 }], [{ "node": "⚠️ Churn Risk Check", "type": "main", "index": 0 }]] },
+    "🆘 Alert DEXAZ Agent": { "main": [[{ "node": "⚠️ Churn Risk Check", "type": "main", "index": 0 }]] },
+    "⚠️ Churn Risk Check": { "main": [[{ "node": "📋 Log Churn Risk", "type": "main", "index": 0 }], [{ "node": "🎛️ Interactive Reply?", "type": "main", "index": 0 }]] },
+    "📋 Log Churn Risk": { "main": [[{ "node": "🎛️ Interactive Reply?", "type": "main", "index": 0 }]] },
+    "🎛️ Interactive Reply?": { "main": [[{ "node": "🔘 Send Interactive Reply", "type": "main", "index": 0 }], [{ "node": "💬 Send Text Reply", "type": "main", "index": 0 }]] },
+    "🔘 Send Interactive Reply": { "main": [[{ "node": "📊 Prepare Analytics", "type": "main", "index": 0 }]] },
+    "💬 Send Text Reply": { "main": [[{ "node": "📊 Prepare Analytics", "type": "main", "index": 0 }]] },
+    "📊 Prepare Analytics": { "main": [[{ "node": "💾 Save to DEXAZ CRM", "type": "main", "index": 0 }, { "node": "📈 Log to Analytics", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "tags": [{ "name": "DEXAZ" }, { "name": "enterprise" }, { "name": "whatsapp" }, { "name": "ai-chatbot" }]
+}
